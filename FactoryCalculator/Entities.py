@@ -10,7 +10,7 @@ class Belt:
     def __init__(self, colour):
         self.objectType = 'band'
         self.set_type(colour)
-        self.materials = {}
+        self.materials = {} #dict of material:item_s
         self.total_load = 0
         
     def check_load_balance(self,item_s,material,action):
@@ -85,6 +85,10 @@ class Belt:
         else:
             print('Invalid belt type!')
 
+    def get_content(self):
+        return self.materials
+        # return [(k,v) for k,v in zip(self.materials.keys(),self.materials.values())]
+
 
 
 class Miner:
@@ -138,7 +142,8 @@ class Miner:
             
         
     def get_output(self):
-        return (self.material,self.mining_speed)
+        # return (self.material,self.mining_speed)
+        return {self.material:self.mining_speed}
         
 
 
@@ -254,31 +259,82 @@ class Inserter:
                 self.item_s_chest_to_belt_red = 10.91
                 self.item_s_chest_to_belt_blue = 13.85
         
-    def link_source(self,sourceObj,material):
-        self.sourceObj = sourceObj
-        if sourceObj.objectType == 'band':
-            self.input_rate_max = sourceObj.material[material] #item / s of material
-        if sourceObj.objectType == 'miner':
-            self.input_rate_max = sourceObj.get_output()[1] #item / s of material
+    # def link_source(self,sourceObj,material):
+    #     self.sourceObj = sourceObj
+    #     if sourceObj.objectType == 'band':
+    #         self.input_rate_max = sourceObj.material[material] #item / s of material
+    #     if sourceObj.objectType == 'miner':
+    #         self.input_rate_max = sourceObj.get_output()[1] #item / s of material
         
-    def link_output(self,outputObj,material):
-        return
+    # def link_output(self,outputObj,material):
+    #     return
+
+    def get_material(self,material):
+        self.outputRateMax = 
+
+    def calculate_outputRate(self,input_max):
+        #inputMax is taken from Factory (if Factory is a chest, use max). InputMax is dictionary
+
         
-
-
 
 
 class Factory:
     '''
     A generic class for (input - wait - ouput) kind of systems.
-    Assume that a belt comes with some 
+    Input is managed by Inserters or Miners.
+    In the case of Miners the output of a miner, use miner.get_output() and use as input for the factory.
+    In case of Inserters, link the inserter to the factory (add inserter to input list). Also link the factory to the inserter.
     '''
-    def __init__(self,name,material_in,wait,material_out):
+    def __init__(self,name,materials_in,wait,materials_out):
         self.objectType = 'factory'
         
-        self.material_in = material_in # on the form [(material1,number1),(material2,number2)] #obs not item / s
+        self.material_in_max = materials_in # on the form [(material1,number1),(material2,number2)] #obs not item / s
+        self.material_out_max = materials_out # on the form [(material1,number1),(material2,number2)] #obs not item / s
         self.wait = wait
         self.modules = []
 
-        self.item_s = ''
-    
+        self.input_max = {m:items/self.wait for m,items in zip(self.materials_in_max.keys(),self.materials_in_max.values())}
+        self.output_max = {m:items/self.wait for m,items in zip(self.materials_out_max.keys(),self.materials_out_max.values())}
+
+    def setup_factory_io(self,inputObjects,outputObjects):
+
+        self.inputObjects = inputObjects # list of e.g. Inserters
+        self.outputObjects = outputObjects # list of e.g. Inserters
+
+
+        # collect material from each inObj. Find a way to sort this out. Check for dict keys and match?
+        for inObj in self.inputObjects:
+            if inObj.objectType == 'inserter':
+                self.material_in_true = inObj.calculate_outputRate(self.input_max)
+            elif inObj.objectType == 'belt':
+                self.material_in_true = inObj.get_content()
+
+
+
+# a factory requires x items of some material(s) to make y product(s).
+# the products take t seconds to make.
+# as such, the factory makes 1 product per t/y seconds and requires x materials.
+# max output / s = y/t
+# max input / s = x/t
+# feed max input to Inserter (or Miner or whatever)
+# calculate actual input #an inserter can take no more material than is available on belt.
+# use actual input to calculate actual output
+#
+# 
+# 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

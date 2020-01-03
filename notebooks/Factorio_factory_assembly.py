@@ -38,6 +38,12 @@ b = Belt('yellow')
 b.load(*miner_ouput)
 
 
+# In[35]:
+
+
+type(sMod1).__name__
+
+
 # #### classes to make
 
 # In[253]:
