@@ -1,5 +1,10 @@
 import numpy as np
 
+def removekey(d,key):
+    r = dict(d)
+    del r[key]
+    return r
+
 class Belt:
     '''
     belts can carry x items/second (x item_s). They do so over two lanes.
@@ -8,12 +13,12 @@ class Belt:
     that sum_i item_s_i \leq max_load
     '''
     def __init__(self, colour):
-        self.objectType = 'band'
+        self.objectType = self.__class__.__name__
         self.set_type(colour)
         self.materials = {} #dict of material:item_s
         self.total_load = 0
         
-    def check_load_balance(self,item_s,material,action):
+    def _check_load_balance(self,item_s,material,action):
         if action == 'load':
             if self.total_load + item_s < self.max_load:
                 item_s_add = item_s
@@ -31,11 +36,15 @@ class Belt:
                 item_s_take = self.materials[material]
             return item_s_take
         
-    def load(self,material,item_s):
+    def load(self,materials):
         '''
         Adds item_s items per second of some material to the belt. It does not add more material than is allowed.
         '''
-        item_s_add = self.check_load_balance(item_s,material,action='load')
+        if len(materials)>1:
+            raise Exception('you can only load one material at the time!')
+
+        material,item_s = [*materials.keys()][0],[*materials.values()][0]
+        item_s_add = self._check_load_balance(item_s,material,action='load')
         if item_s_add > 0:
             if material in self.materials.keys():
                 self.materials[material] += item_s_add
@@ -43,12 +52,17 @@ class Belt:
                 self.materials[material] = item_s_add
             self.total_load += item_s_add
         
-    def unload(self,material,item_s):
+    def unload(self,materials):
         '''
         Removes item_s items per second of some material to the belt.
         It checks if the material is present. It takes no more material than is available.
         '''
-        item_s_take = self.check_load_balance(item_s,material,action='unload')
+        if len(materials)>1:
+            raise Exception('you can only load one material at the time!')
+        material,item_s = [*materials.keys()][0],[*materials.values()][0]
+
+
+        item_s_take = self._check_load_balance(item_s,material,action='unload')
         if item_s_take > 0:
             if material in self.materials.keys():
                 self.materials[material] -= item_s_take
@@ -61,15 +75,10 @@ class Belt:
             
         return (material,item_s_take)
 
-    def removekey(self,d,key):
-        r = dict(d)
-        del r[key]
-        return r
-    
     def tidy_materials(self):
         for k,i in zip(self.materials.keys(),self.materials.values()):
             if i==0:
-                self.materials = self.removekey(self.materials,k)
+                self.materials = removekey(self.materials,k)
         
     def set_type(self,colour):
         self.type = colour
@@ -97,7 +106,7 @@ class Miner:
     They have attributes for modules and science upgrades.
     '''
     def __init__(self,tech,material,lvl=1):
-        self.objectType = 'miner'
+        self.objectType = self.__class__.__name__
         self.mining_base_speed,self.module_slots = self.set_type(tech)
         self.material = material
         self.modules = []
@@ -149,7 +158,7 @@ class Miner:
 
 class Module:
     def __init__(self,tech,lvl):
-        self.objectType = 'module'
+        self.objectType = self.__class__.__name__
         self.type = tech
         self.lvl = lvl
         if self.type=='speed':
@@ -167,15 +176,16 @@ class Module:
 
 class Inserter:
     '''
-    A class for taking item_s items per second away from something (e.g. belt) of some material and putting it in factory, another belt, or chest.
-    The key is that it is linked to the output place. This is how we know the max pace at which it can take material.
+    A class for taking item_s items per second away from something (e.g. belt) of some material and putting it in a factory, another belt, or chest.
     '''
     def __init__(self,tech,lvl):
 
-        self.objectType = 'inserter'
+        self.objectType = self.__class__.__name__
         self.type = tech
         self.lvl = lvl
         self.set_speed()
+        self.sourceObj = None
+        # self.input_rate_max = 0 #cannot take any material if not connected to source object
     
     def set_speed(self):
         if self.type=='burner':
@@ -184,7 +194,7 @@ class Inserter:
                 self.item_s_chest_to_belt_yellow = 0.60
                 self.item_s_chest_to_belt_red = 0.60
                 self.item_s_chest_to_belt_blue = 0.60
-            if self.lvl==2:
+            if (self.lvl>=2)&(self.lvl<7):
                 self.item_s_chest_to_chest = 1.20
                 self.item_s_chest_to_belt_yellow = 1.19
                 self.item_s_chest_to_belt_red = 1.19
@@ -200,7 +210,7 @@ class Inserter:
                 self.item_s_chest_to_belt_yellow = 1.20
                 self.item_s_chest_to_belt_red = 1.20
                 self.item_s_chest_to_belt_blue = 1.20
-            if self.lvl==2:
+            if (self.lvl>=2)&(self.lvl<7):
                 self.item_s_chest_to_chest = 1.67
                 self.item_s_chest_to_belt_yellow = 1.64
                 self.item_s_chest_to_belt_red = 1.64
@@ -216,7 +226,7 @@ class Inserter:
                 self.item_s_chest_to_belt_yellow = 1.20
                 self.item_s_chest_to_belt_red = 1.20
                 self.item_s_chest_to_belt_blue = 1.20
-            if self.lvl==2:
+            if (self.lvl>=2)&(self.lvl<7):
                 self.item_s_chest_to_chest = 2.40
                 self.item_s_chest_to_belt_yellow = 2.35
                 self.item_s_chest_to_belt_red = 2.35
@@ -232,7 +242,7 @@ class Inserter:
                 self.item_s_chest_to_belt_yellow = 2.31 
                 self.item_s_chest_to_belt_red = 2.31 
                 self.item_s_chest_to_belt_blue = 2.31 
-            if self.lvl==2:
+            if (self.lvl>=2)&(self.lvl<7):
                 self.item_s_chest_to_chest = 4.62
                 self.item_s_chest_to_belt_yellow = 4.44
                 self.item_s_chest_to_belt_red = 4.44
@@ -248,7 +258,9 @@ class Inserter:
                 self.item_s_chest_to_belt_yellow = 4.44
                 self.item_s_chest_to_belt_red = 4.44
                 self.item_s_chest_to_belt_blue = 4.44
-            if self.lvl==2:
+
+            if self.lvl==2: # fix this! implement the remaining lvls for stack inserters
+
                 self.item_s_chest_to_chest = 9.23
                 self.item_s_chest_to_belt_yellow = 5.71
                 self.item_s_chest_to_belt_red = 7.06
@@ -258,24 +270,100 @@ class Inserter:
                 self.item_s_chest_to_belt_yellow = 6.79
                 self.item_s_chest_to_belt_red = 10.91
                 self.item_s_chest_to_belt_blue = 13.85
-        
-    # def link_source(self,sourceObj,material):
-    #     self.sourceObj = sourceObj
-    #     if sourceObj.objectType == 'band':
-    #         self.input_rate_max = sourceObj.material[material] #item / s of material
-    #     if sourceObj.objectType == 'miner':
-    #         self.input_rate_max = sourceObj.get_output()[1] #item / s of material
-        
-    # def link_output(self,outputObj,material):
-    #     return
-
-    def get_material(self,material):
-        self.outputRateMax = 
-
-    def calculate_outputRate(self,input_max):
-        #inputMax is taken from Factory (if Factory is a chest, use max). InputMax is dictionary
 
         
+    def link_source(self,sourceObj,material):
+        self.sourceObj = sourceObj
+        if sourceObj.objectType == 'Belt':
+            self.input_rate_max = sourceObj.get_content()[material] #item / s of material
+            self.input_type = 'belt.'+sourceObj.type #what colour?
+        if sourceObj.objectType == 'Miner':
+            self.input_rate_max = sourceObj.get_output()[material] #item / s of material
+            self.input_type = 'chest'
+
+    def get_output_max(self,material,output_type='factory'):
+        if output_type in ['chest','factory']:
+            if self.input_type=='chest':
+                self.output_max = min(self.item_s_chest_to_chest,self.input_rate_max)
+            elif self.input_type.split('.')[0]=='belt':
+                if self.input_type.split('.')[1]=='yellow':
+                    self.output_max = min(self.item_s_chest_to_belt_yellow,self.input_rate_max)
+                elif self.input_type.split('.')[1]=='red':
+                    self.output_max = min(self.item_s_chest_to_belt_red,self.input_rate_max)
+                elif self.input_type.split('.')[1]=='blue':
+                    self.output_max = min(self.item_s_chest_to_belt_blue,self.input_rate_max)
+        else:
+            print('{} not a valid output location'.format(output_type))
+        return self.output_max
+        
+    def take_materials(self,materials): #materials is {material:item_s}
+        if self.sourceObj.objectType == 'Belt':
+            IO = self.sourceObj.unload(materials)
+        elif sourceObj.objectType == 'Chest':
+            IO = self.sourceObj.unload(materials)
+        return IO
+
+class Chest:
+    '''
+    A class to store materials. Assume infinite input capacity. Assume has same output capacity as it has input.
+    '''
+    def __init__(self):
+        self.objectType = self.__class__.__name__
+        self.materials = {}
+
+    def tidy_materials(self):
+        for k,i in zip(self.materials.keys(),self.materials.values()):
+            if i==0:
+                self.materials = removekey(self.materials,k)
+
+    def set_input(self,materials): # should be turned into "add"
+        self.materials = materials
+
+    def _check_balance(self,item_s,material):
+        if not material in self.materials.keys():
+            print('{} not on the belt'.format(material))
+            return 0
+        if self.materials[material] - item_s > 0:
+            item_s_take = item_s
+        else:
+            item_s_take = self.materials[material]
+        return item_s_take
+
+    def add_input(self,materials):
+        '''
+        Adds item_s items per second of some material to the chest
+        '''
+        if len(materials)>1:
+            raise Exception('you can only load one material at the time!')
+
+        material,item_s = [*materials.keys()][0],[*materials.values()][0]
+        if item_s_add > 0:
+            if material in self.materials.keys():
+                self.materials[material] += item_s_add
+            else:
+                self.materials[material] = item_s_add
+            self.total_load += item_s_add
+
+    def unload(self,materials):
+        '''
+        Removes item_s items per second of some material from the chest.
+        It checks if the material is present. It takes no more material than is available.
+        '''
+        if len(materials)>1:
+            raise Exception('you can only load one material at the time!')
+        material,item_s = [*materials.keys()][0],[*materials.values()][0]
+        item_s_take = self._check_load(item_s,material,action='unload')
+        if item_s_take > 0:
+            if material in self.materials.keys():
+                self.materials[material] -= item_s_take
+            else:
+                self.materials[material] = item_s_take
+
+            self.tidy_materials()
+
+            self.total_load -= item_s_take
+            
+        return (material,item_s_take)
 
 
 class Factory:
@@ -286,28 +374,87 @@ class Factory:
     In case of Inserters, link the inserter to the factory (add inserter to input list). Also link the factory to the inserter.
     '''
     def __init__(self,name,materials_in,wait,materials_out):
-        self.objectType = 'factory'
+        self.objectType = self.__class__.__name__
+
+        self.name = name
         
-        self.material_in_max = materials_in # on the form [(material1,number1),(material2,number2)] #obs not item / s
-        self.material_out_max = materials_out # on the form [(material1,number1),(material2,number2)] #obs not item / s
+        self.materials_in_max = materials_in # on the form [(material1,number1),(material2,number2)] #obs not item / s
+        self.materials_out_max = materials_out # on the form [(material1,number1),(material2,number2)] #obs not item / s
         self.wait = wait
         self.modules = []
 
-        self.input_max = {m:items/self.wait for m,items in zip(self.materials_in_max.keys(),self.materials_in_max.values())}
-        self.output_max = {m:items/self.wait for m,items in zip(self.materials_out_max.keys(),self.materials_out_max.values())}
+        self.input_max = {m:items/self.wait for m,items in self.materials_in_max.items()} #zip(self.materials_in_max.keys(),self.materials_in_max.values())}
+        self.output_max = {m:items/self.wait for m,items in self.materials_out_max.items()} #zip(self.materials_out_max.keys(),self.materials_out_max.values())}
 
-    def setup_factory_io(self,inputObjects,outputObjects):
+        self.productionScaling = 1 #used to modify input and output if lacking resources
+
+        self.output = None
+
+    def _calc_relative_inputScale(self,material):
+        sourceList = []
+        for inObj in self.inputObjects:
+            if inObj.objectType == 'Inserter': #the only relevant input type for now. Fluids to be added at some point
+                input_i = inObj.get_output_max(material)
+                sourceList.append(input_i)
+        Input_relScale = {inObj:inObj.get_output_max(material,output_type='factory')/max(sourceList)} #this is the relative amount taken from the respective input sources. Maybe change from using the object itself as key to its name
+        return Input_relScale
+
+    def _calc_ProdScale(self):
+        '''
+        loop over all materials. Loop over input sources. Save list of input sources with the requested material and their respective rates. 
+        check what percentual coverage they have of max rate required by factory. Do this for all materials. 
+        Get total rate scale parameter of available/required resources. 
+        One input source can currently only yield one type of material!
+        '''
+        inputs = []
+        for material in self.materials_in_max.keys():
+            sourceList = []
+            for inObj in self.inputObjects:
+                if inObj.objectType == 'Inserter': #the only relevant input type for now. Fluids to be added at some point
+                    input_i = inObj.get_output_max(material,output_type='factory')
+                    sourceList.append(input_i)
+
+            tot_input_material_i = np.sum(sourceList) #total rate of input materials available
+            input_required_material_i = self.input_max[material] #total required rate for maximal production
+            # compare the two
+            if tot_input_material_i>=input_required_material_i:
+                self.productionScaling = self.productionScaling
+                print('-----')
+                print('{} has enough materials in for maximal production'.format(material))
+                print('-----')
+            else:
+                scaling = float(tot_input_material_i)/float(input_required_material_i)
+                self.productionScaling = min(self.productionScaling,scaling)
+                print('-----')
+                print('{} requires {} input but only {} is available. Scaling production by factor {}'.format(material,input_required_material_i,tot_input_material_i,scaling))
+                print('-----')
+        print('Factory report for factory {}, producing {}'.format(self.name,[*self.materials_out_max.keys()]))
+        print('I/O scaled by factor of {}'.format(self.productionScaling))
+        print('-----')
+
+
+    def set_factory_io(self,inputObjects,outputObjects):
 
         self.inputObjects = inputObjects # list of e.g. Inserters
         self.outputObjects = outputObjects # list of e.g. Inserters
 
 
-        # collect material from each inObj. Find a way to sort this out. Check for dict keys and match?
-        for inObj in self.inputObjects:
-            if inObj.objectType == 'inserter':
-                self.material_in_true = inObj.calculate_outputRate(self.input_max)
-            elif inObj.objectType == 'belt':
-                self.material_in_true = inObj.get_content()
+    def produce(self):
+        if not self.output:
+            self._calc_ProdScale()
+            for material,item_s_max in self.input_max.items():
+                Input_relScale = self._calc_relative_inputScale(material) # the rule is that each input source only yields one type of material!
+
+                # collect material from each inObj
+                for inObj in self.inputObjects:
+                    take_rate = Input_relScale[inObj]*inObj.get_output_max(material,output_type='factory')#calculate rate by which to get material #item_s
+
+                    materials = {material:take_rate}
+                    inObj.take_materials(materials) # actually take material from source
+
+            self.output = {material:item_s_max*self.productionScaling for material,item_s_max in self.output_max.items()}
+        else:
+            print('factory already producing!')
 
 
 

@@ -1,33 +1,34 @@
 
 # coding: utf-8
 
-# In[23]:
+# In[1]:
 
 
 import numpy as np
+import importlib
 # import os
 
 
-# In[19]:
+# In[8]:
 
 
 get_ipython().magic(u'load_ext autoreload')
-get_ipython().magic(u'autoreload 1')
+get_ipython().magic(u'autoreload 2')
 
 
-# In[21]:
+# In[57]:
 
 
-from FactoryCalculator.Entities import Belt,Miner,Module,Inserter,Factory
+from FactoryCalculator.Entities import Belt,Miner,Module,Inserter,Factory,Chest
 
 
-# In[22]:
+# In[135]:
 
 
 sMod1 = Module('speed',1)
 sMod2 = Module('speed',2)
 sMod3 = Module('speed',3)
-miner = Miner('electric',material='iron',lvl=3)
+miner = Miner('electric',material='copper',lvl=3)
 miner.add_modules([sMod1,sMod2])
 miner.mining_base_speed
 miner.mining_speed
@@ -35,28 +36,21 @@ miner.mining_speed
 miner_ouput = miner.get_output()
 
 b = Belt('yellow')
-b.load(*miner_ouput)
+print(b.get_content())
+b.load(miner_ouput)
+print(b.get_content())
 
+I = Inserter('regular',lvl=1)
+I.link_source(b,'copper')
+I.get_output_max('copper',output_type='factory')
 
-# In[35]:
+chest = Chest()
 
+f = Factory('reg_fact',{'copper':1},0.5,{'copperCable':2})
 
-type(sMod1).__name__
-
-
-# #### classes to make
-
-# In[253]:
-
-
-# class pump #mainly oil, but also water
-
-# class pipe #similar to band, but only one type of fluid and maybe other issues
-
-# class inserter #moves item/s. Similar to band
-
-# class factory
-
+f.set_factory_io([I],[chest])
+f.produce()
+print(b.get_content())
 
 
 # #### Other stuff to implement
