@@ -1,4 +1,5 @@
 import numpy as np
+from IPython.core.debugger import set_trace
 
 def removekey(d,key):
     r = dict(d)
@@ -73,7 +74,7 @@ class Belt:
 
             self.total_load -= item_s_take
             
-        return (material,item_s_take)
+        return {material:item_s_take}
 
     def tidy_materials(self):
         for k,i in zip(self.materials.keys(),self.materials.values()):
@@ -274,18 +275,22 @@ class Inserter:
         
     def link_source(self,sourceObj,material):
         self.sourceObj = sourceObj
-        if sourceObj.objectType == 'Belt':
-            self.input_rate_max = sourceObj.get_content()[material] #item / s of material
-            self.input_type = 'belt.'+sourceObj.type #what colour?
-        if sourceObj.objectType == 'Miner':
-            self.input_rate_max = sourceObj.get_output()[material] #item / s of material
-            self.input_type = 'chest'
+        if self.sourceObj.objectType == 'Belt':
+            self.input_rate_max = self.sourceObj.get_content()[material] #item / s of material
+            self.input_type = 'Belt.'+self.sourceObj.type #what colour?
+        if self.sourceObj.objectType == 'Miner':
+            self.input_rate_max = self.sourceObj.get_output()[material] #item / s of material
+            self.input_type = 'Chest'
+        if self.sourceObj.objectType == 'Factory':
+            # set_trace()
+            self.input_rate_max = self.sourceObj.get_output()[material] #item / s of material
+            self.input_type = 'Factory'
 
-    def get_output_max(self,material,output_type='factory'):
-        if output_type in ['chest','factory']:
-            if self.input_type=='chest':
+    def get_output_max(self,material,output_type='Factory'):
+        if output_type in ['Chest','Factory']:
+            if self.input_type in ['Chest','Factory']:
                 self.output_max = min(self.item_s_chest_to_chest,self.input_rate_max)
-            elif self.input_type.split('.')[0]=='belt':
+            elif self.input_type.split('.')[0]=='Belt':
                 if self.input_type.split('.')[1]=='yellow':
                     self.output_max = min(self.item_s_chest_to_belt_yellow,self.input_rate_max)
                 elif self.input_type.split('.')[1]=='red':
@@ -299,7 +304,9 @@ class Inserter:
     def take_materials(self,materials): #materials is {material:item_s}
         if self.sourceObj.objectType == 'Belt':
             IO = self.sourceObj.unload(materials)
-        elif sourceObj.objectType == 'Chest':
+        elif self.sourceObj.objectType == 'Chest':
+            IO = self.sourceObj.unload(materials)
+        elif self.sourceObj.objectType == 'Factory':
             IO = self.sourceObj.unload(materials)
         return IO
 
@@ -321,7 +328,7 @@ class Chest:
 
     def _check_balance(self,item_s,material):
         if not material in self.materials.keys():
-            print('{} not on the belt'.format(material))
+            print('{} not in the chest'.format(material))
             return 0
         if self.materials[material] - item_s > 0:
             item_s_take = item_s
@@ -352,7 +359,7 @@ class Chest:
         if len(materials)>1:
             raise Exception('you can only load one material at the time!')
         material,item_s = [*materials.keys()][0],[*materials.values()][0]
-        item_s_take = self._check_load(item_s,material,action='unload')
+        item_s_take = self._check_balance(item_s,material,action='unload')
         if item_s_take > 0:
             if material in self.materials.keys():
                 self.materials[material] -= item_s_take
@@ -363,7 +370,7 @@ class Chest:
 
             self.total_load -= item_s_take
             
-        return (material,item_s_take)
+        return {material:item_s_take}
 
 
 class Factory:
@@ -373,14 +380,19 @@ class Factory:
     In the case of Miners the output of a miner, use miner.get_output() and use as input for the factory.
     In case of Inserters, link the inserter to the factory (add inserter to input list). Also link the factory to the inserter.
     '''
-    def __init__(self,name,materials_in,wait,materials_out):
+    def __init__(self,recipe,prod_speed):
         self.objectType = self.__class__.__name__
+        # self.objID = 
 
-        self.name = name
+        self.name = recipe.name
         
-        self.materials_in_max = materials_in # on the form [(material1,number1),(material2,number2)] #obs not item / s
-        self.materials_out_max = materials_out # on the form [(material1,number1),(material2,number2)] #obs not item / s
-        self.wait = wait
+        self.materials_in_max = recipe.materials_in # on the form [(material1,number1),(material2,number2)] #obs not item / s
+        self.materials_out_max = recipe.materials_out # on the form [(material1,number1),(material2,number2)] #obs not item / s
+        self.base_wait = recipe.wait
+
+        self.prod_speed = prod_speed
+        self.wait = self.base_wait/self.prod_speed
+        
         self.modules = []
 
         self.input_max = {m:items/self.wait for m,items in self.materials_in_max.items()} #zip(self.materials_in_max.keys(),self.materials_in_max.values())}
@@ -390,14 +402,6 @@ class Factory:
 
         self.output = None
 
-    def _calc_relative_inputScale(self,material):
-        sourceList = []
-        for inObj in self.inputObjects:
-            if inObj.objectType == 'Inserter': #the only relevant input type for now. Fluids to be added at some point
-                input_i = inObj.get_output_max(material)
-                sourceList.append(input_i)
-        Input_relScale = {inObj:inObj.get_output_max(material,output_type='factory')/max(sourceList)} #this is the relative amount taken from the respective input sources. Maybe change from using the object itself as key to its name
-        return Input_relScale
 
     def _calc_ProdScale(self):
         '''
@@ -406,12 +410,13 @@ class Factory:
         Get total rate scale parameter of available/required resources. 
         One input source can currently only yield one type of material!
         '''
+        self.productionScaling = 1
         inputs = []
         for material in self.materials_in_max.keys():
             sourceList = []
             for inObj in self.inputObjects:
                 if inObj.objectType == 'Inserter': #the only relevant input type for now. Fluids to be added at some point
-                    input_i = inObj.get_output_max(material,output_type='factory')
+                    input_i = inObj.get_output_max(material,output_type='Factory')
                     sourceList.append(input_i)
 
             tot_input_material_i = np.sum(sourceList) #total rate of input materials available
@@ -419,18 +424,18 @@ class Factory:
             # compare the two
             if tot_input_material_i>=input_required_material_i:
                 self.productionScaling = self.productionScaling
-                print('-----')
-                print('{} has enough materials in for maximal production'.format(material))
-                print('-----')
+                # print('-----')
+                # print('{} has enough materials in for maximal production'.format(material))
+                # print('-----')
             else:
                 scaling = float(tot_input_material_i)/float(input_required_material_i)
                 self.productionScaling = min(self.productionScaling,scaling)
                 print('-----')
                 print('{} requires {} input but only {} is available. Scaling production by factor {}'.format(material,input_required_material_i,tot_input_material_i,scaling))
                 print('-----')
-        print('Factory report for factory {}, producing {}'.format(self.name,[*self.materials_out_max.keys()]))
-        print('I/O scaled by factor of {}'.format(self.productionScaling))
-        print('-----')
+        # print('Report for factory {}, producing {}'.format(self.name,[*self.materials_out_max.keys()]))
+        # print('I/O scaled by factor of {}'.format(self.productionScaling))
+        # print('-----')
 
 
     def set_factory_io(self,inputObjects,outputObjects):
@@ -438,50 +443,95 @@ class Factory:
         self.inputObjects = inputObjects # list of e.g. Inserters
         self.outputObjects = outputObjects # list of e.g. Inserters
 
+    def _calc_relative_inputScale(self,material,inputObjects):
+        sourceList = []
+        for inObj in inputObjects:
+            if inObj.objectType == 'Inserter': #the only relevant input type for now. Fluids to be added at some point
+                input_i = inObj.get_output_max(material,output_type='Factory')
+                sourceList.append(input_i)
+        Input_relScale = {inObj:inObj.get_output_max(material,output_type='Factory')/max(sourceList) for inObj in inputObjects} #this is the relative amount taken from the respective input sources. Maybe change from using the object itself as key to its name
+        return Input_relScale
 
     def produce(self):
         if not self.output:
             self._calc_ProdScale()
             for material,item_s_max in self.input_max.items():
-                Input_relScale = self._calc_relative_inputScale(material) # the rule is that each input source only yields one type of material!
+                Input_relScale = self._calc_relative_inputScale(material,self.inputObjects) # the rule is that each input source only yields one type of material!
 
                 # collect material from each inObj
                 for inObj in self.inputObjects:
-                    take_rate = Input_relScale[inObj]*inObj.get_output_max(material,output_type='factory')#calculate rate by which to get material #item_s
+                    # set_trace()
+                    take_rate = Input_relScale[inObj]*inObj.get_output_max(material,output_type='Factory')#calculate rate by which to get material #item_s
 
                     materials = {material:take_rate}
+                    
                     inObj.take_materials(materials) # actually take material from source
 
+            # print(self.output_max)
+            # print(self.productionScaling)
             self.output = {material:item_s_max*self.productionScaling for material,item_s_max in self.output_max.items()}
+
+            # for material,item_s in self.input_max.items():
+                # for inObj in self.inputObjects:
+                    # inObj.take_materials({material:item_s*self.productionScaling}) # actually take material from source
+
         else:
             print('factory already producing!')
 
+    def _check_balance(self,item_s,material):
+        if not material in self.output.keys():
+            print('{} not in factory {}'.format(material,self.name))
+            return 0
+        if self.output[material] - item_s > 0:
+            item_s_take = item_s
+        else:
+            item_s_take = self.output[material]
+        return item_s_take
+
+    def tidy_output(self):
+        for k,i in zip(self.output.keys(),self.output.values()):
+            if i==0:
+                self.output = removekey(self.output,k)
+
+    def unload(self,materials):
+        '''
+        Removes item_s items per second of some material from the factory.
+        It checks if the material is present. It takes no more material than is available.
+        '''
+        if len(materials)>1:
+            raise Exception('you can only unload one material at the time!')
+        material,item_s = [*materials.keys()][0],[*materials.values()][0]
+        item_s_take = self._check_balance(item_s,material)
+        if item_s_take > 0:
+            if material in self.output.keys():
+                self.output[material] -= item_s_take
+            else:
+                self.output[material] = item_s_take
+
+            self.tidy_output()
+            
+        return {material,item_s_take}
 
 
-# a factory requires x items of some material(s) to make y product(s).
-# the products take t seconds to make.
-# as such, the factory makes 1 product per t/y seconds and requires x materials.
-# max output / s = y/t
-# max input / s = x/t
-# feed max input to Inserter (or Miner or whatever)
-# calculate actual input #an inserter can take no more material than is available on belt.
-# use actual input to calculate actual output
-#
+    def get_output(self):
+        if not self.output:
+            self._calc_ProdScale()
+            output = {material:item_s_max*self.productionScaling for material,item_s_max in self.output_max.items()}
+            return output
+        else:
+            return self.output
+
+
+class Recipe:
+    def __init__(self):
+        self.objectType = self.__class__.__name__
+
+    def create_recipe(self,name,materials_in,wait,materials_out):
+        self.name = name
+        self.materials_in = materials_in
+        self.wait = wait
+        self.materials_out = materials_out
+
+
+
 # 
-# 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
