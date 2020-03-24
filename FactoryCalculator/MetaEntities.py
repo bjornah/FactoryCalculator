@@ -15,9 +15,16 @@ class MinerList:
 
 class MetaFactory:
     '''
-    
-    '''    
-    def __init__(self,constituentList,objID=None):
+    Takes list of factories. Does magic. Supposed to collect input/output to facilitate making larger factories.
+    '''
+    def __init__(self,fList,objID=None):
         self.objectType = self.__class__.__name__
         self.objID = objID
+        self.fList = fList
         
+        self.inputs = [] # List of belts,miners,etc
+        self.outputs = None # {material:item_s} this must no go into a chest
+        
+        # for f in fList:
+        #     for input_obj in np.array(f.inputList)[:,0]:
+        #         if input_obj
