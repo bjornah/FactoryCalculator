@@ -1,8 +1,8 @@
 import functools
-from IPython.core.debugger import set_trace
+# from IPython.core.debugger import set_trace
 # from FactoryCalculator import Data
 # from FactoryCalculator.Entities import Recipe
-from FactoryCalculator.Entities2 import Recipe
+from FactoryCalculator.Entities import Recipe
 
 def overview(objs):
     '''
