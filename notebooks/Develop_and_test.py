@@ -51,7 +51,7 @@ b2.load(copper_ouput1)
 
 print(b2.get_content())
 
-#### use two inserters, one for iron and one for copper, to transfer material.
+#### transfer material.
 # Iron -> green chip
 # 
 # copper -> copper cables -> green chip 
@@ -125,6 +125,8 @@ for f in fList:
 
 # # To do
 # ## First
+# - improve comments in code and descriptions in functions
+# - test setup where we have two copper cable factories but two inserters for each
 # - implement proper unit tests
 # - make additional and more complex test cases
 # - clean up printed output when running factories
@@ -134,6 +136,9 @@ for f in fList:
 # 
 # ----
 # ## later 
+# - make documentation
+#     - import summary of functions using some library
+#     - summarise overarching goals of package
 # - create meta factories
 # - create functions for data scraping for recipes and entity statistics
 # - fix global power information
@@ -146,7 +151,7 @@ for f in fList:
 # - fix graphical representation of factory, input and output
 # - make ML to try to go from MetaFactory to suggestion on actual setup in factorio
 
-# # Thoughts
+# # chalk board
 # 
 # - Initiate all factories
 # - let them make requests of what they need. This creates a tree of requirements of {material:item_s} for each factory, setting a goal of what each factory must produce.
